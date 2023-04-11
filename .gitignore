@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+# IDE workspace settings
+.vscode/
+.idea/
+# cfn module build
+cfn-module/*.zip
+cfn-module/*.json
+cfn-module/fragments/
+cfn-module/rpdk.log

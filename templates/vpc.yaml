@@ -1,0 +1,195 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  This CloudFormation template sets up a Virtual Private Cloud (VPC) on AWS, which consists of a pair of public and private subnets that are spread across two Availability Zones.
+  The template also creates an internet gateway and configures a default route on the public subnets, allowing traffic to flow in and out of the VPC.
+
+Parameters: 
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.192.0.0/16
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.10.0/24
+
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.11.0/24
+
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.20.0/24
+
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.21.0/24
+
+Resources: 
+  DemoVPCCIDR:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: demo-vpc
+      Type: String
+      Value: 10.192.0.0/16
+      Description: SSM Parameter for Demo VPC CIDR
+      Tags:
+        Environment: DEV
+        Type: VPC
+  DemoPublicSubnet1:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: demo-vpc-subnet-public-01
+      Type: String
+      Value: 10.192.10.0/24
+      Description: SSM Parameter for Demo VPC Public Subnet CIDR
+      Tags:
+        Environment: DEV
+        NetworkType: Public
+        VPC: !Ref DemoVPC
+  DemoPublicSubnet2:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: demo-vpc-subnet-public-02
+      Type: String
+      Value: 10.192.11.0/24
+      Description: SSM Parameter for Demo VPC Public Subnet CIDR
+      Tags:
+        Environment: DEV
+        NetworkType: Public
+        VPC: !Ref DemoVPC
+  DemoPrivateSubnet1:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: demo-vpc-subnet-private-01
+      Type: String
+      Value: 10.192.20.0/24
+      Description: SSM Parameter for Demo VPC Public Subnet CIDR
+      Tags:
+        Environment: DEV
+        NetworkType: Private
+        VPC: !Ref DemoVPC
+  DemoPrivateSubnet2:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: demo-vpc-subnet-private-02
+      Type: String
+      Value: 10.192.21.0/24
+      Description: SSM Parameter for Demo VPC Public Subnet CIDR
+      Tags:
+        Environment: DEV
+        NetworkType: Private
+        VPC: !Ref DemoVPC
+  DemoVPCId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: demo-vpc-id
+      Type: String
+      Value: !Ref DemoVPC
+      Description: SSM Parameter for Demo VPC ID
+      Tags:
+        Environment: DEV
+  DemoVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !GetAtt [DemoVPCCIDR,Value]
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  demoInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: VPC-ID
+          Value: !Ref DemoVPC
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  demoInternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref DemoVPC
+      InternetGatewayId: !Ref demoInternetGateway
+  publicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DemoVPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !GetAtt [DemoPublicSubnet1,Value]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+  publicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DemoVPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !GetAtt [DemoPublicSubnet2,Value]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+  privateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DemoVPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !GetAtt [DemoPrivateSubnet1,Value]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+  privateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DemoVPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !GetAtt [DemoPrivateSubnet2,Value]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+  demoPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref DemoVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Routes
+  demoDefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: demoInternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref demoPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref demoInternetGateway
+  publicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref demoPublicRouteTable
+      SubnetId: !Ref publicSubnet1
+
+  publicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref demoPublicRouteTable
+      SubnetId: !Ref publicSubnet2
+
+  demoECSTaskSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref DemoVPC
+      GroupDescription: Sample source security group for demo ecs task
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
